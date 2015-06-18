@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="
+        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <!--do not uncomment line bellow - cyclic creation will be performed-->
+    <!--<context:component-scan base-package="com.ringcentral.n11s.cpx"/>-->
+    <context:property-placeholder location="${configuration.path}"/>
+
+
+    <bean id="abstractCache" abstract="true" class="org.apache.ignite.configuration.CacheConfiguration">
+        <property name="atomicityMode" value="ATOMIC"/>
+        <property name="backups" value="1"/>
+    </bean>
+
+    <bean id="abstractReplicatedCache" abstract="true" parent="abstractCache">
+        <property name="pluginConfigurations" ref="gridGainReplicatedCacheConfiguration"/>
+    </bean>
+
+    <bean id="myCache" parent="abstractReplicatedCache">
+        <property name="name" value="#{T(org.sample.bug.CacheNames).MY_CACHE}"/>
+    </bean>
+
+    <bean id="ignite.cfg" class="org.apache.ignite.configuration.IgniteConfiguration">
+
+        <!-- We are using Jdk marshaller to prevent problems with differents class versions.
+            Unfortunately OptimizedMarshaller in opposite to JdkMarshaller does not perform checking of serialVersionUID,
+            so we can not use OptimizedMarshaller together with by node update -->
+        <property name="marshaller">
+            <bean class="org.apache.ignite.marshaller.jdk.JdkMarshaller"/>
+        </property>
+
+        <property name="cacheConfiguration">
+            <list>
+                <ref bean="myCache"/>
+            </list>
+        </property>
+
+        <property name="discoverySpi">
+            <bean class="org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi">
+                <property name="ipFinder">
+                    <bean class="org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder">
+                        <property name="addresses">
+                            <bean class="org.springframework.util.StringUtils" factory-method="commaDelimitedListToSet">
+                                <constructor-arg type="java.lang.String" value="${discovery.node-addresses}"/>
+                            </bean>
+                        </property>
+                    </bean>
+                </property>
+                <property name="localPort" value="${discovery.local-port}"/>
+                <property name="localPortRange" value="${local-port-range}"/>
+                <!--<property name="joinTimeout" value="100"/>-->
+            </bean>
+        </property>
+
+        <property name="communicationSpi">
+            <bean class="org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi">
+                <property name="localPort" value="${communication.local-port}"/>
+                <property name="localPortRange" value="${local-port-range}"/>
+            </bean>
+        </property>
+
+        <property name="gridLogger">
+            <bean class="org.apache.ignite.logger.slf4j.Slf4jLogger"/>
+        </property>
+
+        <property name="pluginConfigurations" ref="gridGainConfiguration"/>
+
+        <property name="connectorConfiguration">
+            <bean class="org.apache.ignite.configuration.ConnectorConfiguration">
+                <property name="port" value="${connector.port}"/>
+                <property name="portRange" value="${connector.port-range}"/>
+            </bean>
+        </property>
+    </bean>
+
+    <bean id="gridGainConfiguration" class="org.gridgain.grid.configuration.GridGainConfiguration">
+        <property name="drSenderConfiguration" ref="drSenderConfiguration"/>
+        <property name="drReceiverConfiguration" ref="drReceiverConfiguration"/>
+        <property name="dataCenterId" value="${replication.location-id}"/>
+    </bean>
+
+    <bean id="drReceiverConfiguration" class="org.gridgain.grid.configuration.DrReceiverConfiguration">
+        <property name="localInboundPort" value="${replication.local-port}"/>
+    </bean>
+
+    <bean id="drSenderConfiguration" class="org.gridgain.grid.configuration.DrSenderConfiguration">
+        <property name="connectionConfiguration">
+            <bean class="org.gridgain.grid.dr.DrSenderConnectionConfiguration">
+                <property name="receiverAddresses">
+                    <bean class="org.springframework.util.StringUtils"
+                          factory-method="commaDelimitedListToStringArray">
+                        <constructor-arg type="java.lang.String" value="${replication.remote-addresses}"/>
+                    </bean>
+                </property>
+                <property name="dataCenterId" value="${replication.remote-location-id}"/>
+            </bean>
+        </property>
+        <property name="cacheNames">
+            <bean class="org.springframework.util.StringUtils" factory-method="commaDelimitedListToStringArray">
+                <constructor-arg type="java.lang.String" value="#{T(org.sample.bug.CacheNames).MY_CACHE}"/>
+            </bean>
+        </property>
+    </bean>
+
+    <bean id="gridGainReplicatedCacheConfiguration" class="org.gridgain.grid.configuration.GridGainCacheConfiguration">
+        <property name="drSenderConfiguration">
+            <bean class="org.gridgain.grid.cache.dr.CacheDrSenderConfiguration"/>
+        </property>
+        <property name="drReceiverEnabled" value="true"/>
+    </bean>
+
+</beans>

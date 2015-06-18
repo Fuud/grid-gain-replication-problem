@@ -1,0 +1,18 @@
+<configuration debug="true" scan="true">
+    
+    <property name="component" value="cpx"/>
+    <property name="messagePattern" value="%d [%thread] %-5level %logger{36} - %msg%n"/>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${messagePattern}</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="org.apache.ignite" level="ERROR"/>
+
+    <root level="TRACE">
+        <appender-ref ref="STDOUT"/>
+    </root>
+    
+</configuration>
